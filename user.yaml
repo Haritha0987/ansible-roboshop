@@ -2,8 +2,8 @@
   hosts: user
   become: true
   vars:
-    mongo_host: "172.31.81.251"  # Replace with actual MongoDB IP address
-    redis_host: "<REDIS-IP-ADDRESS>"  # Replace with actual Redis IP address
+    mongo_host: "mongodb.daws-84s.space"  # Replace with actual MongoDB IP address
+    redis_host: "redis.daws-84s.space"  # Replace with actual Redis IP address
   tasks:
     - name: Disable current NodeJS module
       shell: dnf module disable nodejs -y

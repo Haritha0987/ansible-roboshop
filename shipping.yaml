@@ -2,8 +2,8 @@
   hosts: shipping
   become: true
   vars:
-    cart_endpoint: "<CART-SERVER-IPADDRESS>:8080"  # Replace with actual Cart server IP
-    mysql_host: "<MYSQL-SERVER-IPADDRESS>"          # Replace with actual MySQL server IP
+    cart_endpoint: "cart.daws-84s.space:8080"  # Replace with actual Cart server IP
+    mysql_host: "mysql.daws-84s.space"          # Replace with actual MySQL server IP
   tasks:
     - name: Install Maven (includes Java)
       dnf:

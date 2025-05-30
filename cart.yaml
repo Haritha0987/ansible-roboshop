@@ -2,8 +2,8 @@
   hosts: cart
   become: true
   vars:
-    redis_host: "<REDIS-SERVER-IP>"  # Replace with actual Redis server IP
-    catalogue_host: "<CATALOGUE-SERVER-IP>"  # Replace with actual Catalogue server IP
+    redis_host: "redis.daws-84s.space"  # Replace with actual Redis server IP
+    catalogue_host: "catalogue.daws-84s.space"  # Replace with actual Catalogue server IP
   tasks:
     - name: Disable current NodeJS module
       shell: dnf module disable nodejs -y

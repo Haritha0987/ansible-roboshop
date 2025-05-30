@@ -2,9 +2,9 @@
   hosts: payment
   become: true
   vars:
-    cart_host: "<CART-SERVER-IPADDRESS>"
-    user_host: "<USER-SERVER-IPADDRESS>"
-    rabbitmq_host: "<RABBITMQ-SERVER-IPADDRESS>"
+    cart_host: "cart.daws-84s.space"
+    user_host: "user.daws-84s.space"
+    rabbitmq_host: "rabbitmq.daws-84s.space"
   tasks:
     - name: Install Python3 and development tools
       dnf:

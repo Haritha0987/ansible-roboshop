@@ -2,7 +2,7 @@
   hosts: dispatch
   become: true
   vars:
-    rabbitmq_host: "<RABBITMQ-SERVER-IPADDRESS>"
+    rabbitmq_host: "rabbitmq.daws-84s.space"
   tasks:
     - name: Install GoLang
       dnf:
