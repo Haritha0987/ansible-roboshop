@@ -1,0 +1,21 @@
+---
+# roboshop-ansible/mongodb.yaml
+
+- name: Setup MongoDB for Roboshop
+  hosts: mongodb
+  become: true
+  tasks:
+    - name: Create MongoDB repo file
+      copy: ansible.builtin.copy:
+        dest: /etc/yum.repos.d/mongo.repo
+        content: |
+          [mongodb-org-7.0]
+          name=MongoDB Repository
+          baseurl=https://repo.mongodb.org/yum/redhat/9/mongodb-org/7.0/x86_64/
+          enabled=1
+          gpgcheck=0
+
+    - name: Install MongoDB
+      dnf: ansible.builtin.dnf:
+        name: mongodb-org
+        state: present
