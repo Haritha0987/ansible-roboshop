@@ -1,0 +1,80 @@
+- name: Setup Payment Service for Roboshop
+  hosts: payment
+  become: true
+  vars:
+    cart_host: "<CART-SERVER-IPADDRESS>"
+    user_host: "<USER-SERVER-IPADDRESS>"
+    rabbitmq_host: "<RABBITMQ-SERVER-IPADDRESS>"
+  tasks:
+    - name: Install Python3 and development tools
+      dnf:
+        name:
+          - python3
+          - gcc
+          - python3-devel
+        state: present
+
+    - name: Add roboshop application user
+      user:
+        name: roboshop
+        comment: "roboshop system user"
+        system: yes
+        shell: /sbin/nologin
+        home: /app
+        create_home: no
+
+    - name: Create /app directory
+      file:
+        path: /app
+        state: directory
+        owner: roboshop
+
+    - name: Download payment application code
+      get_url:
+        url: https://roboshop-artifacts.s3.amazonaws.com/payment-v3.zip
+        dest: /tmp/payment.zip
+
+    - name: Unzip payment application
+      unarchive:
+        src: /tmp/payment.zip
+        dest: /app
+        remote_src: yes
+
+    - name: Install Python dependencies
+      pip:
+        requirements: /app/requirements.txt
+        executable: pip3
+
+    - name: Create systemd service for payment
+      copy:
+        dest: /etc/systemd/system/payment.service
+        content: |
+          [Unit]
+          Description=Payment Service
+
+          [Service]
+          User=root
+          WorkingDirectory=/app
+          Environment=CART_HOST={{ cart_host }}
+          Environment=CART_PORT=8080
+          Environment=USER_HOST={{ user_host }}
+          Environment=USER_PORT=8080
+          Environment=AMQP_HOST={{ rabbitmq_host }}
+          Environment=AMQP_USER=roboshop
+          Environment=AMQP_PASS=roboshop123
+          ExecStart=/usr/local/bin/uwsgi --ini payment.ini
+          ExecStop=/bin/kill -9 $MAINPID
+          SyslogIdentifier=payment
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start payment service
+      systemd:
+        name: payment
+        enabled: yes
+        state: started

@@ -1,0 +1,32 @@
+- name: Setup Redis for Roboshop
+  hosts: redis
+  become: true
+  tasks:
+    - name: Disable current Redis module
+      shell: dnf module disable redis -y
+
+    - name: Enable Redis 7 module
+      shell: dnf module enable redis:7 -y
+
+    - name: Install Redis
+      dnf:
+        name: redis
+        state: present
+
+    - name: Update Redis listen address to 0.0.0.0
+      replace:
+        path: /etc/redis/redis.conf
+        regexp: '^bind 127.0.0.1'
+        replace: 'bind 0.0.0.0'
+
+    - name: Disable protected mode in Redis
+      replace:
+        path: /etc/redis/redis.conf
+        regexp: '^protected-mode yes'
+        replace: 'protected-mode no'
+
+    - name: Enable and start Redis service
+      systemd:
+        name: redis
+        enabled: yes
+        state: started

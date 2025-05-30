@@ -1,0 +1,90 @@
+- name: Setup Shipping Service for Roboshop
+  hosts: shipping
+  become: true
+  vars:
+    cart_endpoint: "<CART-SERVER-IPADDRESS>:8080"  # Replace with actual Cart server IP
+    mysql_host: "<MYSQL-SERVER-IPADDRESS>"          # Replace with actual MySQL server IP
+  tasks:
+    - name: Install Maven (includes Java)
+      dnf:
+        name: maven
+        state: present
+
+    - name: Add roboshop application user
+      user:
+        name: roboshop
+        comment: "roboshop system user"
+        system: yes
+        shell: /sbin/nologin
+        home: /app
+        create_home: no
+
+    - name: Create /app directory
+      file:
+        path: /app
+        state: directory
+        owner: roboshop
+
+    - name: Download shipping application code
+      get_url:
+        url: https://roboshop-artifacts.s3.amazonaws.com/shipping-v3.zip
+        dest: /tmp/shipping.zip
+
+    - name: Unzip shipping application
+      unarchive:
+        src: /tmp/shipping.zip
+        dest: /app
+        remote_src: yes
+
+    - name: Build the shipping application
+      shell: |
+        mvn clean package
+        mv target/shipping-1.0.jar shipping.jar
+      args:
+        chdir: /app
+
+    - name: Create systemd service for shipping
+      copy:
+        dest: /etc/systemd/system/shipping.service
+        content: |
+          [Unit]
+          Description=Shipping Service
+
+          [Service]
+          User=roboshop
+          Environment=CART_ENDPOINT={{ cart_endpoint }}
+          Environment=DB_HOST={{ mysql_host }}
+          ExecStart=/bin/java -jar /app/shipping.jar
+          SyslogIdentifier=shipping
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start shipping service
+      systemd:
+        name: shipping
+        enabled: yes
+        state: started
+
+    - name: Install MySQL client
+      dnf:
+        name: mysql
+        state: present
+
+    - name: Load shipping schema
+      shell: mysql -h {{ mysql_host }} -uroot -pRoboShop@1 < /app/db/schema.sql
+
+    - name: Create shipping app user in MySQL
+      shell: mysql -h {{ mysql_host }} -uroot -pRoboShop@1 < /app/db/app-user.sql
+
+    - name: Load master data into MySQL
+      shell: mysql -h {{ mysql_host }} -uroot -pRoboShop@1 < /app/db/master-data.sql
+
+    - name: Restart shipping service after schema load
+      systemd:
+        name: shipping
+        state: restarted

@@ -1,0 +1,75 @@
+- name: Setup User Service for Roboshop
+  hosts: user
+  become: true
+  vars:
+    mongo_host: "172.31.81.251"  # Replace with actual MongoDB IP address
+    redis_host: "<REDIS-IP-ADDRESS>"  # Replace with actual Redis IP address
+  tasks:
+    - name: Disable current NodeJS module
+      shell: dnf module disable nodejs -y
+
+    - name: Enable NodeJS 20 module
+      shell: dnf module enable nodejs:20 -y
+
+    - name: Install NodeJS
+      dnf:
+        name: nodejs
+        state: present
+
+    - name: Add roboshop application user
+      user:
+        name: roboshop
+        comment: "roboshop system user"
+        system: yes
+        shell: /sbin/nologin
+        home: /app
+        create_home: no
+
+    - name: Create /app directory
+      file:
+        path: /app
+        state: directory
+        owner: roboshop
+
+    - name: Download user application code
+      get_url:
+        url: https://roboshop-artifacts.s3.amazonaws.com/user-v3.zip
+        dest: /tmp/user.zip
+
+    - name: Unzip user application
+      unarchive:
+        src: /tmp/user.zip
+        dest: /app
+        remote_src: yes
+
+    - name: Install user service dependencies
+      npm:
+        path: /app
+
+    - name: Create systemd service for user
+      copy:
+        dest: /etc/systemd/system/user.service
+        content: |
+          [Unit]
+          Description = User Service
+
+          [Service]
+          User=roboshop
+          Environment=MONGO=true
+          Environment=REDIS_URL='redis://{{ redis_host }}:6379'
+          Environment=MONGO_URL="mongodb://{{ mongo_host }}:27017/users"
+          ExecStart=/bin/node /app/server.js
+          SyslogIdentifier=user
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start user service
+      systemd:
+        name: user
+        enabled: yes
+        state: started

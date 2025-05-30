@@ -1,0 +1,75 @@
+- name: Setup Cart Service for Roboshop
+  hosts: cart
+  become: true
+  vars:
+    redis_host: "<REDIS-SERVER-IP>"  # Replace with actual Redis server IP
+    catalogue_host: "<CATALOGUE-SERVER-IP>"  # Replace with actual Catalogue server IP
+  tasks:
+    - name: Disable current NodeJS module
+      shell: dnf module disable nodejs -y
+
+    - name: Enable NodeJS 20 module
+      shell: dnf module enable nodejs:20 -y
+
+    - name: Install NodeJS
+      dnf:
+        name: nodejs
+        state: present
+
+    - name: Add roboshop application user
+      user:
+        name: roboshop
+        comment: "roboshop system user"
+        system: yes
+        shell: /sbin/nologin
+        home: /app
+        create_home: no
+
+    - name: Create /app directory
+      file:
+        path: /app
+        state: directory
+        owner: roboshop
+
+    - name: Download cart application code
+      get_url:
+        url: https://roboshop-artifacts.s3.amazonaws.com/cart-v3.zip
+        dest: /tmp/cart.zip
+
+    - name: Unzip cart application
+      unarchive:
+        src: /tmp/cart.zip
+        dest: /app
+        remote_src: yes
+
+    - name: Install cart service dependencies
+      npm:
+        path: /app
+
+    - name: Create systemd service for cart
+      copy:
+        dest: /etc/systemd/system/cart.service
+        content: |
+          [Unit]
+          Description = Cart Service
+
+          [Service]
+          User=roboshop
+          Environment=REDIS_HOST={{ redis_host }}
+          Environment=CATALOGUE_HOST={{ catalogue_host }}
+          Environment=CATALOGUE_PORT=8080
+          ExecStart=/bin/node /app/server.js
+          SyslogIdentifier=cart
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start cart service
+      systemd:
+        name: cart
+        enabled: yes
+        state: started

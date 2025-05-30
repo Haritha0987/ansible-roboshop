@@ -1,0 +1,72 @@
+- name: Setup Dispatch Service for Roboshop
+  hosts: dispatch
+  become: true
+  vars:
+    rabbitmq_host: "<RABBITMQ-SERVER-IPADDRESS>"
+  tasks:
+    - name: Install GoLang
+      dnf:
+        name: golang
+        state: present
+
+    - name: Add roboshop application user
+      user:
+        name: roboshop
+        comment: "roboshop system user"
+        system: yes
+        shell: /sbin/nologin
+        home: /app
+        create_home: no
+
+    - name: Create /app directory
+      file:
+        path: /app
+        state: directory
+        owner: roboshop
+
+    - name: Download dispatch application code
+      get_url:
+        url: https://roboshop-artifacts.s3.amazonaws.com/dispatch-v3.zip
+        dest: /tmp/dispatch.zip
+
+    - name: Unzip dispatch application
+      unarchive:
+        src: /tmp/dispatch.zip
+        dest: /app
+        remote_src: yes
+
+    - name: Build dispatch application
+      shell: |
+        go mod init dispatch
+        go get
+        go build
+      args:
+        chdir: /app
+
+    - name: Create systemd service for dispatch
+      copy:
+        dest: /etc/systemd/system/dispatch.service
+        content: |
+          [Unit]
+          Description=Dispatch Service
+
+          [Service]
+          User=roboshop
+          Environment=AMQP_HOST={{ rabbitmq_host }}
+          Environment=AMQP_USER=roboshop
+          Environment=AMQP_PASS=roboshop123
+          ExecStart=/app/dispatch
+          SyslogIdentifier=dispatch
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start dispatch service
+      systemd:
+        name: dispatch
+        enabled: yes
+        state: started
