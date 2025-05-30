@@ -1,0 +1,100 @@
+---
+- name: Setup Catalogue Microservice
+  hosts: catalogue
+  become: yes
+
+  vars:
+    nodejs_version: "20"
+    mongodb_ip: "mongodb.daws-84s.space"  # Replace this with actual IP
+
+  tasks:
+
+    - name: Disable default NodeJS module
+      ansible.builtin.command: dnf module disable nodejs -y
+
+    - name: Enable NodeJS {{ nodejs_version }} module
+      ansible.builtin.command: dnf module enable nodejs:{{ nodejs_version }} -y
+
+    - name: Install NodeJS
+      ansible.builtin.dnf:
+        name: nodejs
+        state: present
+
+    - name: Create roboshop user
+      ansible.builtin.user:
+        name: roboshop
+        system: yes
+        shell: /sbin/nologin
+        home: /app
+        comment: roboshop system user
+        create_home: no
+
+    - name: Create application directory
+      ansible.builtin.file:
+        path: /app
+        state: directory
+        owner: roboshop
+        group: roboshop
+
+    - name: Download catalogue application
+      ansible.builtin.get_url:
+        url: https://roboshop-artifacts.s3.amazonaws.com/catalogue-v3.zip
+        dest: /tmp/catalogue.zip
+
+    - name: Extract application content
+      ansible.builtin.unarchive:
+        src: /tmp/catalogue.zip
+        dest: /app
+        remote_src: yes
+
+    - name: Install application dependencies
+      ansible.builtin.shell: npm install
+      args:
+        chdir: /app
+
+    - name: Create systemd service for catalogue
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/catalogue.service
+        content: |
+          [Unit]
+          Description=Catalogue Service
+
+          [Service]
+          User=roboshop
+          Environment=MONGO=true
+          Environment=MONGO_URL="mongodb://{{ mongodb_ip }}:27017/catalogue"
+          ExecStart=/bin/node /app/server.js
+          SyslogIdentifier=catalogue
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Enable and start catalogue service
+      ansible.builtin.systemd:
+        name: catalogue
+        enabled: yes
+        state: started
+
+    - name: Setup MongoDB repo
+      ansible.builtin.copy:
+        dest: /etc/yum.repos.d/mongo.repo
+        content: |
+          [mongodb-org-7.0]
+          name=MongoDB Repository
+          baseurl=https://repo.mongodb.org/yum/redhat/9/mongodb-org/7.0/x86_64/
+          enabled=1
+          gpgcheck=0
+
+    - name: Install MongoDB shell client
+      ansible.builtin.dnf:
+        name: mongodb-mongosh
+        state: present
+
+    - name: Load master data into MongoDB
+      ansible.builtin.shell: mongosh --host {{ mongodb_ip }} </app/db/master-data.js
+      args:
+        executable: /bin/bash
